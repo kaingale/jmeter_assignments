@@ -1,9 +1,8 @@
 
-name: JMeter Assignment Ci
+name: Run JMeter Assignment
 
 on:
-  pull_request:
-    types: [closed]
+  push:
     branches:
       - main
     paths:
@@ -12,24 +11,13 @@ on:
 
 jobs:
   run-jmeter:
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'feature'))
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Detect changed JMX files (merge PR)
-        if: github.event_name == 'pull_request'
-        id: get_changes
-        run: |
-          echo "CHANGED=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '\.jmx$' | xargs)" >> $GITHUB_ENV
-
-      - name: Find all JMX files (manual run)
-        if: github.event_name == 'workflow_dispatch'
-        id: get_all
+      - name: Find all JMX files
         run: |
           echo "CHANGED=$(find . -type f -name '*.jmx' | xargs)" >> $GITHUB_ENV
 
