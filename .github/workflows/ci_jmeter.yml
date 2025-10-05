@@ -8,6 +8,11 @@ on:
     paths:
       - '**/*.jmx'
   workflow_dispatch:
+    inputs:
+      jmx_file:
+        description: 'Path to the JMX file to run'
+        required: true
+        default: './Parameterization_blazedemo.jmx'
 
 jobs:
   run-jmeter:
@@ -17,18 +22,33 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Find all JMX files
+
+      - name: Find changed JMX files (push)
+        if: github.event_name == 'push'
         run: |
-          echo "CHANGED=$(find . -type f -name '*.jmx' | xargs)" >> $GITHUB_ENV
+          CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }} | grep '\.jmx$' || true)
+          echo "CHANGED=$CHANGED" >> $GITHUB_ENV
 
-      - name: Show JMX files to run
-        run: echo "Files:$CHANGED"
+      
+      - name: Show changed JMX files (push)
+        if: github.event_name == 'push'
+        run: echo "Changed JMX files:$CHANGED"
 
-      - name: Run JMeter on appropriate JMX files
-        if: env.CHANGED != ''
+     
+      - name: Run JMeter on changed files (push)
+        if: github.event_name == 'push' && env.CHANGED != ''
         run: |
           mkdir -p results
           for jmx in $CHANGED; do
             echo "Running JMeter: $jmx"
-            docker run --rm -v $PWD:/mnt justb4/jmeter -n -t /mnt/$jmx -l /mnt/results/$(basename $jmx .jmx).jtl
+            docker run --rm -v $PWD:/mnt blazemeter/jmeter -n -t /mnt/$jmx -l /mnt/results/$(basename $jmx .jmx).jtl
           done
+
+     
+      - name: Run specified JMeter file (manual)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          mkdir -p results
+          JMX_FILE="${{ github.event.inputs.jmx_file }}"
+          echo "Manual run: Running JMeter for $JMX_FILE"
+          docker run --rm -v $PWD:/mnt blazemeter/jmeter -n -t /mnt/$JMX_FILE -l /mnt/results/$(basename $JMX_FILE .jmx).jtl
