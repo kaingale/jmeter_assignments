@@ -22,33 +22,54 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-
-      - name: Find changed JMX files (push)
-        if: github.event_name == 'push'
+      - name: Pick JMX file
+        id: pickjmx
         run: |
-          CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }} | grep '\.jmx$' || true)
-          echo "CHANGED=$CHANGED" >> $GITHUB_ENV
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "JMX_FILE=${{ github.event.inputs.jmx_file }}" >> $GITHUB_ENV
+          else
+            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }} | grep '\.jmx$' | head -n 1 || true)
+            if [ -z "$CHANGED" ]; then
+              echo "No changed JMX files, skipping test."
+              exit 0
+            fi
+            echo "JMX_FILE=$CHANGED" >> $GITHUB_ENV
+            echo "Changed JMX file: $CHANGED"
+          fi
 
-      
-      - name: Show changed JMX files (push)
-        if: github.event_name == 'push'
-        run: echo "Changed JMX files:$CHANGED"
+      - name: Create Docker Compose file
+        run: |
+          cat > docker-compose.yml << EOF
+          version: '3'
+          services:
+            jmeter-master:
+              image: justb4/jmeter
+              command: >
+                -n -t /mnt/\${JMX_FILE} -l /mnt/results/result.jtl -R jmeter-slave1,jmeter-slave2
+              volumes:
+                - .:/mnt
+              depends_on:
+                - jmeter-slave1
+                - jmeter-slave2
+            jmeter-slave1:
+              image: justb4/jmeter
+              command: -s
+              volumes:
+                - .:/mnt
+            jmeter-slave2:
+              image: justb4/jmeter
+              command: -s
+              volumes:
+                - .:/mnt
+          EOF
 
-     
-      - name: Run JMeter on changed files (push)
-        if: github.event_name == 'push' && env.CHANGED != ''
+      - name: Run distributed JMeter test
         run: |
           mkdir -p results
-          for jmx in $CHANGED; do
-            echo "Running JMeter: $jmx"
-            docker run --rm -v $PWD:/mnt blazemeter/jmeter -n -t /mnt/$jmx -l /mnt/results/$(basename $jmx .jmx).jtl
-          done
+          export JMX_FILE="$JMX_FILE"
+          docker-compose up --abort-on-container-exit jmeter-master
+        env:
+          JMX_FILE: ${{ env.JMX_FILE }}
 
-     
-      - name: Run specified JMeter file (manual)
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          mkdir -p results
-          JMX_FILE="${{ github.event.inputs.jmx_file }}"
-          echo "Manual run: Running JMeter for $JMX_FILE"
-          docker run --rm -v $PWD:/mnt justb4/jmeter -n -t /mnt/$JMX_FILE -l /mnt/results/$(basename $JMX_FILE .jmx).jtl
+      - name: Print JMeter results
+        run: cat results/result.jtl || echo "No results file found"
