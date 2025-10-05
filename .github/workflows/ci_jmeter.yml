@@ -50,7 +50,7 @@ jobs:
             jmeter-master:
               image: justb4/jmeter
               command: >
-                -n -t /mnt/\${JMX_FILE} -l /mnt/results/result.jtl -R jmeter-slave1,jmeter-slave2
+                -Dserver.rmi.ssl.disable=true -n -t /mnt/\${JMX_FILE} -l /mnt/results/result.jtl -R jmeter-slave1,jmeter-slave2
               volumes:
                 - .:/mnt
               depends_on:
@@ -58,16 +58,19 @@ jobs:
                 - jmeter-slave2
             jmeter-slave1:
               image: justb4/jmeter
-              command: -s
+              command: >
+                -Dserver.rmi.ssl.disable=true -s
               volumes:
                 - .:/mnt
             jmeter-slave2:
               image: justb4/jmeter
-              command: -s
+              command: >
+                -Dserver.rmi.ssl.disable=true -s
               volumes:
                 - .:/mnt
           EOF
 
+          
       - name: Run distributed JMeter test
         run: |
           mkdir -p results
