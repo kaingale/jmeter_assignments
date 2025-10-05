@@ -51,4 +51,4 @@ jobs:
           mkdir -p results
           JMX_FILE="${{ github.event.inputs.jmx_file }}"
           echo "Manual run: Running JMeter for $JMX_FILE"
-          docker run --rm -v $PWD:/mnt blazemeter/jmeter -n -t /mnt/$JMX_FILE -l /mnt/results/$(basename $JMX_FILE .jmx).jtl
+          docker run --rm -v $PWD:/mnt justb4/jmeter -n -t /mnt/$JMX_FILE -l /mnt/results/$(basename $JMX_FILE .jmx).jtl
